@@ -1,0 +1,39 @@
+{
+  "baseUrl": "https://member.digiflazz.com",
+  "apiPrefix": "/api/v1",
+  "cookieFile": "../kuki.txt",
+  "mode": "buyer",
+
+  "speed": "normal",
+  "_speedNote": "normal = ~700ms antar-request (anti rate-limit), turbo = ~450ms",
+
+  "concurrency": 1,
+  "_concurrencyNote": "Request paralel 1-10 (menutup latency). Laju tetap dibatasi rateLimitPerMin server, jadi paralel tinggi TIDAK menembus batas.",
+
+  "groupDelayMs": 3000,
+  "_groupDelayNote": "Jeda (ms) setelah tiap grup Kategori/Brand/Sub-brand selesai. 0 = tanpa jeda. Web bisa override.",
+
+  "rateLimitPerMin": 120,
+  "_rateLimitNote": "Batas request/menit dari server (Laravel throttle: X-RateLimit-Limit=120). Tool otomatis menjaga laju < batas ini + hormati Retry-After.",
+
+  "geoip": {
+    "enabled": true,
+    "expectedCountry": "ID",
+    "_note": "Hanya proxy yang lokasinya = expectedCountry yang dipakai. Cocokkan IP proxy dengan lokasi akun.",
+    "lookupEndpoint": "http://ip-api.com/json/"
+  },
+
+  "proxy": {
+    "enabled": false,
+    "_note": "Isi daftar proxy (http://user:pass@host:port). Kosong = koneksi langsung.",
+    "list": []
+  },
+
+  "userAgent": "",
+  "_userAgentNote": "Kosong = generate otomatis dari fingerprint generator (konsisten OS Windows).",
+
+  "retry": {
+    "maxAttempts": 6,
+    "backoffMs": 1500
+  }
+}

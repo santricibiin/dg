@@ -1,0 +1,21 @@
+{
+  "name": "digiflazz-fetch-tool",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Otomasi Digiflazz buyer-area via HTTP fetch (hapus / tambah / ubah seller) tanpa ekstensi. Dilengkapi proxy + GeoIP matching dan UA fingerprint.",
+  "bin": {
+    "dfx": "cli.js"
+  },
+  "scripts": {
+    "web": "node server.js",
+    "start": "node server.js",
+    "cli": "node cli.js"
+  },
+  "dependencies": {
+    "undici": "^6.19.8"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
