@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+digiflazz-next/node_modules/
+
+# next.js build
+.next/
+digiflazz-next/.next/
+out/
+
+# env / secrets
+.env
+.env.local
+.env*.local
+digiflazz-next/.env
+digiflazz-next/DEPLOY_CREDENTIALS.txt
+
+# logs
+*.log
+npm-debug.log*
+
+# os
+.DS_Store
+
+# misc
+*.bak
+*.bak.*

@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  superadmin
+  user
+}
+
+enum TenantStatus {
+  trial
+  active
+  past_due
+  suspended
+}
+
+model Tenant {
+  id           Int          @id @default(autoincrement())
+  name         String
+  slug         String       @unique
+  status       TenantStatus @default(trial)
+  plan         String       @default("free")
+  trialEndsAt  DateTime?
+  expiresAt    DateTime?
+  monthlyQuota Int          @default(20)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  users      User[]
+  settings   Setting?
+  activities Activity[]
+
+  @@index([status])
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  email     String   @unique
+  emailNorm String?  @unique
+  password  String
+  role      Role   @default(user)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  activities Activity[]
+
+  @@index([tenantId])
+}
+
+model Setting {
+  id           Int      @id @default(autoincrement())
+  tenantId     Int      @unique
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cookie       String?  @db.Text
+cookieHash   String?
+  speed        String   @default("normal")
+  concurrency  Int      @default(1)
+  groupDelayMs Int    @default(3000)
+  userAgent    String?  @db.Text
+  updatedAt    DateTime @updatedAt
+
+  @@index([cookieHash])
+}
+
+model Activity {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  status    String   @default("success")
+  detail    String?  @db.Text
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model RegistrationLog {
+  id        Int      @id @default(autoincrement())
+  ip        String
+  createdAt DateTime @default(now())
+
+  @@index([ip])
+  @@index([createdAt])
+}

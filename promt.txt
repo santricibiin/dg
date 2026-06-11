@@ -1,0 +1,34 @@
+Act as an expert Full-Stack Developer and Software Architect. I want to rebuild an existing website based on a reference structure that you already know. 
+
+Build the application using this exact tech stack:
+- Frontend: Next.js (App Router), React, Tailwind CSS
+- Database & ORM: Prisma ORM with MySQL (Development environment: Laragon)
+
+Strictly follow these comprehensive system rules and requirements:
+
+1. ARCHITECTURE & AUTHENTICATION
+- Implement Role-Based Access Control (RBAC) with two roles: 'admin' and 'user'.
+- Feature logic and core functionalities must exactly mirror the provided reference website.
+- Create a secure Login system. 
+- Crucial: Disable public registration. There is NO register page. New users can only be created and managed manually by the 'admin' from the admin dashboard.
+
+2. UI/UX & DESIGN SYSTEM (Premium Agency Standard)
+- Design Style: Simple, elegant, hyper-professional, clean, and modern. It must NOT look like a generic, copy-paste AI template. Design it like a premium, high-ticket custom website.
+- Color Palette: Deep Blue (Biru Tua) as the primary color, balanced with sophisticated neutrals (whites, grays, dark slates).
+- Layout: Include a clean, simple, and functional sidebar containing intuitive icons for navigation.
+- Features must be organized clearly per-page.
+- Dashboard Page: Display interactive and clean data visualization/metrics showing feature usage statistics.
+- Settings Page: Implement a configuration section allowing users to set cookies via text input (paste) or file upload (.txt).
+
+3. CODE CLEANLINESS & WRITING STYLE
+- Write clean, production-ready, and highly maintainable code.
+- STRICT RULE: Do NOT include any comments (no `//` or `/* */`) inside the code blocks. The code must be self-explanatory and free of clutter.
+- Do not give long-winded introductions or explanations. Output the code directly.
+
+4. SECURITY & ROBUSTNESS
+- The codebase must strictly adhere to modern security standards.
+- Ensure complete protection against SQL Injection (utilize Prisma's built-in query safety correctly).
+- Prevent Cross-Site Scripting (XSS) and implement secure cookie handling/session management.
+- Sanitize all user inputs and handle errors gracefully without leaking sensitive system information.
+
+Please generate the file structure and the initial core files following these specifications.
