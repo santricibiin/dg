@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Play, Loader2, Terminal, Square, Trash } from "lucide-react";
+import { Play, Loader2, Terminal, Square, Trash, Pause, PlayCircle } from "lucide-react";
 import { useRunner } from "@/components/RunnerContext";
 
 const LEVEL_STYLE = {
@@ -12,7 +12,7 @@ const LEVEL_STYLE = {
 };
 
 export default function OperationRunner({ action, title, description, children, getPayload }) {
-  const { logs, running, summary, run, stop, clear } = useRunner(action);
+  const { logs, running, paused, summary, run, stop, pause, resume, clear } = useRunner(action);
   const consoleRef = useRef(null);
   const autoScroll = useRef(true);
 
@@ -45,27 +45,44 @@ export default function OperationRunner({ action, title, description, children, 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="card space-y-4">
           {children}
-          <div className="flex gap-2">
+       <div className="flex gap-2">
             <button onClick={handleRun} className="btn-primary flex-1" disabled={running}>
-              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              {running ? "Sedang berjalan" : "Jalankan"}
+       {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+  {running ? (paused ? "Dijeda" : "Sedang berjalan") : "Jalankan"}
             </button>
-            {running && (
-              <button onClick={stop} className="btn-danger" title="Hentikan">
-                <Square className="h-4 w-4" /> Stop
-              </button>
-            )}
-          </div>
+         {running && (
+        <>
+    <button
+   onClick={paused ? resume : pause}
+     className="btn-ghost"
+title={paused ? "Lanjutkan" : "Jeda"}
+        >
+          {paused ? (
+        <>
+       <PlayCircle className="h-4 w-4" /> Lanjut
+                </>
+   ) : (
+  <>
+            <Pause className="h-4 w-4" /> Jeda
+    </>
+ )}
+         </button>
+   <button onClick={stop} className="btn-danger" title="Hentikan">
+            <Square className="h-4 w-4" /> Stop
+   </button>
+ </>
+         )}
+ </div>
         </div>
 
         <div className="card flex flex-col">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
             <Terminal className="h-4 w-4" /> Log Proses
             {running && (
-              <span className="flex items-center gap-1 text-xs font-normal text-emerald-500">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> berjalan
-              </span>
-            )}
+  <span className={`flex items-center gap-1 text-xs font-normal ${paused ? "text-amber-500" : "text-emerald-500"}`}>
+     <span className={`h-2 w-2 rounded-full ${paused ? "bg-amber-500" : "animate-pulse bg-emerald-500"}`} /> {paused ? "dijeda" : "berjalan"}
+     </span>
+   )}
             {logs.length > 0 && !running && (
               <button
                 onClick={clear}

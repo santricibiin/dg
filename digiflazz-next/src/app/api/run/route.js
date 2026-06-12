@@ -4,6 +4,7 @@ import { requireActiveTenant, resolveTenantId, getQuotaInfo } from "@/lib/tenant
 import { decryptSecret } from "@/lib/crypto";
 import { resolveClient } from "@/lib/digiflazz/session";
 import { runDelete, runAdd, runSeller } from "@/lib/digiflazz/operations";
+import { createJob, removeJob, sweepJobs } from "@/lib/digiflazz/jobs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -75,19 +76,31 @@ export async function POST(req) {
     async start(controller) {
       const send = (obj) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
 
+      // Buat job yang bisa dijeda/dihentikan dari /api/run/control.
+      sweepJobs();
+      const jobId =
+  (body.jobId && String(body.jobId)) ||
+        `${tenantId}-${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const job = createJob(jobId, tenantId);
+ // Kirim jobId lebih dulu agar klien bisa mengontrol proses ini.
+      send({ type: "job", jobId });
+
       let client;
       try {
-        const resolved = resolveClient(decryptedSetting, {
+      const resolved = resolveClient(decryptedSetting, {
           onLog: (entry) => send(entry),
-          budget: quota.unlimited ? null : quota.remaining,
+    budget: quota.unlimited ? null : quota.remaining,
+        checkpoint: () => job.checkpoint(),
+          isStopped: () => job.stopped,
         });
         client = resolved.client;
-        if (resolved.expired.length) {
+  if (resolved.expired.length) {
           send({ level: "warn", msg: `Cookie mungkin kedaluwarsa: ${resolved.expired.join(", ")}.` });
         }
       } catch (e) {
-        send({ level: "error", msg: e.message });
-        controller.close();
+     send({ level: "error", msg: e.message });
+        removeJob(jobId);
+controller.close();
         return;
       }
 
@@ -111,12 +124,18 @@ export async function POST(req) {
         send({ level: "info", msg: `Memulai aksi "${action}"${opts.dryRun ? " (simulasi)" : ""}...` });
         result = await handler(client, opts);
         send({ level: "ok", msg: "Selesai." });
-        send({ type: "summary", data: result });
+   send({ type: "summary", data: result });
       } catch (e) {
-        status = "error";
-        send({ level: "error", msg: `Gagal: ${e.message}` });
+ if (e.name === "JobStoppedError") {
+   status = "stopped";
+          send({ level: "warn", msg: "Dihentikan oleh pengguna." });
+        } else {
+          status = "error";
+   send({ level: "error", msg: `Gagal: ${e.message}` });
+        }
       } finally {
-      try {
+     removeJob(jobId);
+        try {
        await prisma.activity.create({
     data: {
               tenantId,

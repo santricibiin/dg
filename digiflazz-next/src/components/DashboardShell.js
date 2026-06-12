@@ -88,8 +88,8 @@ export default function DashboardShell({ user, children, tenantBanner }) {
     <RunnerProvider>
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Desktop sidebar */}
-      <aside
-        className={`hidden shrink-0 border-r border-slate-200 transition-[width] duration-200 ease-in-out dark:border-slate-800 md:block ${
+  <aside
+        className={`hidden shrink-0 transition-[width] duration-200 ease-in-out md:block ${
           collapsed ? "w-[72px]" : "w-64"
         }`}
       >
@@ -118,9 +118,9 @@ export default function DashboardShell({ user, children, tenantBanner }) {
         >
           <button
             onClick={() => setMobileOpen(false)}
-            className="absolute right-3 top-4 z-10 rounded-lg p-1.5 text-brand-200 hover:bg-white/10 hover:text-white"
+ className="absolute right-3 top-4 z-10 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
             aria-label="Tutup menu"
-          >
+        >
             <X className="h-5 w-5" />
           </button>
           <Sidebar user={user} onNavigate={() => setMobileOpen(false)} />

@@ -19,6 +19,8 @@ export function resolveClient(setting, overrides = {}) {
     fingerprint,
     onLog: overrides.onLog,
     budget: overrides.budget,
+    checkpoint: overrides.checkpoint,
+    isStopped: overrides.isStopped,
   });
   return { client, expired: sess.expired };
 }

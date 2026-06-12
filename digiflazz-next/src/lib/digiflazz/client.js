@@ -10,8 +10,14 @@ export class DigiflazzClient {
     this.xsrf = opts.xsrf;
     this.fp = opts.fingerprint;
     this.retry = opts.retry || { maxAttempts: 4, backoffMs: 1500 };
-    this.mode = opts.mode || "buyer";
+  this.mode = opts.mode || "buyer";
     this.onLog = typeof opts.onLog === "function" ? opts.onLog : () => {};
+    // Dipanggil sebelum tiap request: menahan saat dijeda, melempar saat dihentikan.
+  this.checkpoint =
+      typeof opts.checkpoint === "function" ? opts.checkpoint : async () => {};
+    // Cek sinkron apakah job telah dihentikan, agar loop operasi bisa berhenti rapi.
+    this.isStopped =
+      typeof opts.isStopped === "function" ? opts.isStopped : () => false;
 
     this.actionFloor = opts.speed === "turbo" ? 450 : 700;
     this.rateLimitPerMin = Number(opts.rateLimitPerMin) || 120;
@@ -83,7 +89,8 @@ export class DigiflazzClient {
 
     let attempt = 0;
     while (true) {
-      attempt++;
+   attempt++;
+      await this.checkpoint();
       await this._throttle();
       let res, text;
       try {
@@ -167,5 +174,7 @@ export function buildClient(setting, overrides = {}) {
     retry: { maxAttempts: 6, backoffMs: 1500 },
     onLog: overrides.onLog,
     budget,
+    checkpoint: overrides.checkpoint,
+    isStopped: overrides.isStopped,
   });
 }

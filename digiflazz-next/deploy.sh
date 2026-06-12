@@ -20,7 +20,30 @@ warn()  { printf "    ${C_YELLOW}!!${C_RESET} %s\n" "$1"; }
 die()   { printf "\n${C_RED}${C_BOLD}GAGAL:${C_RESET} %s\n" "$1" >&2; exit 1; }
 
 have()  { command -v "$1" >/dev/null 2>&1; }
-rand()  { tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${1:-32}"; }
+# Jalankan perintah kritis: sembunyikan output saat sukses, tampilkan & hentikan
+# (dengan log lengkap) saat gagal. Mencegah kegagalan "tertelan" oleh set -e
+# pada pola `cmd && ok` yang membuat script lanjut seolah sukses.
+run() {
+  local _log; _log="$(mktemp)"
+  if "$@" >"${_log}" 2>&1; then
+rm -f "${_log}"; return 0
+  fi
+  printf "\n${C_RED}${C_BOLD}GAGAL menjalankan:${C_RESET} %s\n" "$*" >&2
+  printf "${C_DIM}--- output ---${C_RESET}\n" >&2
+  cat "${_log}" >&2
+  rm -f "${_log}"
+  return 1
+}
+# Hasilkan string acak alfanumerik sepanjang N (default 32).
+# Catatan: hindari pola `tr ... | head` karena head menutup pipe lebih awal
+# sehingga tr menerima SIGPIPE (exit 141) dan — dengan `set -o pipefail` +
+# `set -e` — membuat script keluar diam-diam. Di sini input dibatasi lebih
+# dulu lalu dipotong via parameter expansion (tanpa pipe yang bisa SIGPIPE).
+rand() {
+  local n="${1:-32}" s
+  s="$(LC_ALL=C tr -dc 'A-Za-z0-9' < <(head -c "$(( n * 20 ))" /dev/urandom))"
+  printf '%s' "${s:0:n}"
+}
 
 banner() {
   printf "${C_BOLD}${C_CYAN}"
@@ -73,16 +96,18 @@ info "Port internal: ${APP_PORT}"
 # ------------------------------- APT update ---------------------------------
 step "Memperbarui indeks paket APT"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y >/dev/null 2>&1 && ok "apt-get update selesai"
+run apt-get update -y || die "apt-get update gagal. Cek koneksi internet/repositori."
+ok "apt-get update selesai"
 
 install_pkg() {
   # install_pkg <command-to-check> <apt-package> [label]
   local cmd="$1" pkg="$2" label="${3:-$2}"
-  if have "$cmd"; then
+if [ -n "$cmd" ] && have "$cmd"; then
     skip "$label"
   else
-    info "Memasang ${label}..."
-    apt-get install -y "$pkg" >/dev/null 2>&1 && ok "${label} terpasang"
+ info "Memasang ${label}..."
+    run apt-get install -y "$pkg" || die "Gagal memasang ${label}."
+  ok "${label} terpasang"
   fi
 }
 
@@ -105,8 +130,10 @@ if have node; then
   fi
 fi
 if [ "${NODE_OK}" -eq 0 ]; then
-  curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null 2>&1
-  apt-get install -y nodejs >/dev/null 2>&1 && ok "Node.js $(node -v) terpasang"
+  curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null 2>&1 \
+    || die "Gagal menambahkan repositori NodeSource."
+  run apt-get install -y nodejs || die "Gagal memasang Node.js."
+  ok "Node.js $(node -v) terpasang"
 fi
 have npm && info "npm $(npm -v)"
 
@@ -115,14 +142,15 @@ step "Memasang MariaDB"
 if have mariadbd || have mysqld || systemctl list-unit-files 2>/dev/null | grep -q mariadb; then
   skip "MariaDB server"
 else
-  apt-get install -y mariadb-server mariadb-client >/dev/null 2>&1 && ok "MariaDB terpasang"
+  run apt-get install -y mariadb-server mariadb-client || die "Gagal memasang MariaDB."
+  ok "MariaDB terpasang"
 fi
 systemctl enable --now mariadb >/dev/null 2>&1 || systemctl enable --now mysql >/dev/null 2>&1 || true
 ok "Layanan MariaDB aktif"
 
 step "Menyiapkan database & pengguna"
 # Idempotent: CREATE IF NOT EXISTS + set/refresh password user.
-mysql --protocol=socket -u root <<SQL
+mysql --protocol=socket -u root <<SQL || die "Gagal menyiapkan database/pengguna MariaDB."
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '${DB_USER}'@'${DB_HOST}' IDENTIFIED BY '${DB_PASS}';
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
@@ -160,29 +188,33 @@ ok ".env tertulis"
 step "Memasang dependensi npm"
 cd "${APP_DIR}"
 if [ -f package-lock.json ]; then
-  npm ci >/dev/null 2>&1 || npm install >/dev/null 2>&1
+  run npm ci || run npm install || die "Gagal memasang dependensi npm."
 else
-  npm install >/dev/null 2>&1
+  run npm install || die "Gagal memasang dependensi npm."
 fi
 ok "Dependensi terpasang"
 
 step "Migrasi skema database (prisma db push)"
-npx prisma generate >/dev/null 2>&1 && ok "Prisma client digenerate"
-npx prisma db push >/dev/null 2>&1 && ok "Skema database tersinkron"
+run npx prisma generate || die "Gagal generate Prisma client."
+ok "Prisma client digenerate"
+run npx prisma db push || die "Gagal sinkronisasi skema database."
+ok "Skema database tersinkron"
 
 step "Seed data awal (super admin + tenant demo)"
 SEED_OUT="$(npm run seed 2>&1 || true)"
-echo "${SEED_OUT}" | grep -qi "selesai" && ok "Seed selesai" || warn "Seed mungkin sudah pernah dijalankan"
+if echo "${SEED_OUT}" | grep -qi "selesai"; then ok "Seed selesai"; else warn "Seed mungkin sudah pernah dijalankan"; fi
 
 step "Build aplikasi (next build)"
-npm run build >/dev/null 2>&1 && ok "Build produksi selesai"
+run npm run build || die "Build produksi gagal. Cek error di atas."
+ok "Build produksi selesai"
 
 # --------------------------------- PM2 --------------------------------------
 step "Memasang PM2 (process manager)"
 if have pm2; then
   skip "PM2"
 else
-  npm install -g pm2 >/dev/null 2>&1 && ok "PM2 terpasang"
+  run npm install -g pm2 || die "Gagal memasang PM2."
+  ok "PM2 terpasang"
 fi
 
 step "Menjalankan aplikasi via PM2"

@@ -3,6 +3,11 @@ import { runPool, groupDelay } from "./pool.js";
 
 const BULK_CHUNK = 50;
 
+// Hentikan loop bila kuota habis atau job dihentikan pengguna.
+function shouldStop(client) {
+  return client.isQuotaExhausted() || client.isStopped();
+}
+
 function filterCategories(cats, only, skip) {
   const onlySet = new Set((only || []).map((s) => s.toLowerCase().trim()));
   const skipSet = new Set((skip || []).map((s) => s.toLowerCase().trim()));
@@ -31,9 +36,9 @@ export async function runDelete(client, opts = {}) {
   let deleted = 0;
 
   for (let ci = 0; ci < willProcess.length; ci++) {
-    if (client.isQuotaExhausted()) {
-      client.log("warn", "Kuota habis. Menghentikan proses.");
-      break;
+    if (shouldStop(client)) {
+      client.log("warn", client.isStopped() ? "Dihentikan. Proses berhenti." : "Kuota habis. Menghentikan proses.");
+    break;
     }
     const cat = willProcess[ci];
     client.log("info", `Kategori [${ci + 1}/${willProcess.length}]: ${cat.name}`);
@@ -44,8 +49,8 @@ export async function runDelete(client, opts = {}) {
     }
     const groups = groupByBrandType(products, brandMap, typeMap);
     for (let gi = 0; gi < groups.length; gi++) {
-      if (client.isQuotaExhausted()) {
-        client.log("warn", "Kuota habis. Menghentikan proses.");
+      if (shouldStop(client)) {
+        client.log("warn", client.isStopped() ? "Dihentikan. Proses berhenti." : "Kuota habis. Menghentikan proses.");
         break;
       }
       const g = groups[gi];
@@ -117,8 +122,8 @@ export async function runAdd(client, opts = {}) {
   let skipped = 0;
 
   for (let ci = 0; ci < willProcess.length; ci++) {
-    if (client.isQuotaExhausted()) {
-      client.log("warn", "Kuota habis. Menghentikan proses.");
+    if (shouldStop(client)) {
+      client.log("warn", client.isStopped() ? "Dihentikan. Proses berhenti." : "Kuota habis. Menghentikan proses.");
       break;
     }
     const cat = willProcess[ci];
@@ -140,36 +145,37 @@ export async function runAdd(client, opts = {}) {
       const g = groups[gi];
       client.log("info", `  ${cat.name} > ${g.brandName} > ${g.typeName} (${g.items.length})`);
       await runPool(g.items, client.concurrency, async (row) => {
-        if (client.isQuotaExhausted()) return;
+        if (shouldStop(client)) return;
         if (opts.dryRun) {
-          client.log("warn", `  [DRY-RUN] +${row.name}`);
+    client.log("warn", `  [DRY-RUN] +${row.name}`);
           added++;
-          return;
-        }
+   return;
+ }
         if (!client.tryConsume(1)) {
           client.log("warn", `  Kuota hampir habis, hentikan.`);
           return;
         }
         try {
-          await client.post(
-            `/${client.mode}/product/store/prabayar`,
+    await client.post(
+ `/${client.mode}/product/store/prabayar`,
             {
-              id: row.id,
+  id: row.id,
               name: row.name,
-              desc: row.desc,
-              category: row.category,
-              brand: row.brand,
+   desc: row.desc,
+       category: row.category,
+  brand: row.brand,
               type: row.type,
-              generate_sku_code: true,
+          generate_sku_code: true,
             },
             { referer: "https://member.digiflazz.com/buyer-area/product/add" }
-          );
-          added++;
+    );
+        added++;
           client.log("ok", `+${row.name}`);
-        } catch (e) {
+   } catch (e) {
+          if (e.name === "JobStoppedError") return;
           skipped++;
-          client.log("warn", `Gagal tambah "${row.name}": ${e.message}`);
-        }
+       client.log("warn", `Gagal tambah "${row.name}": ${e.message}`);
+ }
       });
       await groupDelay(client, gi === groups.length - 1);
     }
@@ -245,18 +251,18 @@ export async function runSeller(client, opts = {}) {
   let failed = 0;
 
   for (let ci = 0; ci < willProcess.length; ci++) {
-    if (client.isQuotaExhausted()) {
-      client.log("warn", "Kuota habis. Menghentikan proses.");
+    if (shouldStop(client)) {
+      client.log("warn", client.isStopped() ? "Dihentikan. Proses berhenti." : "Kuota habis. Menghentikan proses.");
       break;
     }
     const cat = willProcess[ci];
-    client.log("info", `Kategori [${ci + 1}/${willProcess.length}]: ${cat.name}`);
+ client.log("info", `Kategori [${ci + 1}/${willProcess.length}]: ${cat.name}`);
     let products;
     try {
       products = await listProductsInCategory(client, cat.id);
     } catch (e) {
       client.log("error", `${cat.name}: gagal ambil produk (${e.message}).`);
-      continue;
+    continue;
     }
     if (!products.length) continue;
 
@@ -265,35 +271,36 @@ export async function runSeller(client, opts = {}) {
       const g = groups[gi];
       client.log("info", `  ${cat.name} > ${g.brandName} > ${g.typeName} (${g.items.length})`);
       await runPool(g.items, client.concurrency, async (product) => {
-        if (client.isQuotaExhausted()) return;
-        const pname = product.product || product.id;
+   if (shouldStop(client)) return;
+     const pname = product.product || product.id;
         try {
           if (opts.skipExisting && hasSeller(product)) {
             skipped++;
             return;
           }
-          const r = await client.get(`/buyer/product/seller/${product.id}`);
+      const r = await client.get(`/buyer/product/seller/${product.id}`);
           const sellers = r.data?.data || [];
           const chosen = chooseSeller(sellers, opts);
-          if (!chosen) {
-            skipped++;
-            client.log("warn", `"${pname}": tidak ada seller cocok.`);
-            return;
-          }
+     if (!chosen) {
+ skipped++;
+   client.log("warn", `"${pname}": tidak ada seller cocok.`);
+  return;
+  }
           if (opts.dryRun) {
-            processed++;
+   processed++;
             client.log("warn", `[DRY-RUN] "${pname}" -> ${chosen.seller} (Rp${chosen.price})`);
             return;
           }
           if (!client.tryConsume(1)) {
-            client.log("warn", `  Kuota hampir habis, hentikan.`);
+  client.log("warn", `  Kuota hampir habis, hentikan.`);
             return;
-          }
+   }
           const payload = buildUpdatedProduct(product, chosen, opts);
           await client.post("/buyer/product", payload);
-          processed++;
-          client.log("ok", `"${pname}" -> ${chosen.seller} (Rp${chosen.price})`);
-        } catch (e) {
+        processed++;
+       client.log("ok", `"${pname}" -> ${chosen.seller} (Rp${chosen.price})`);
+     } catch (e) {
+    if (e.name === "JobStoppedError") return;
           failed++;
           client.log("warn", `"${pname}": gagal (${e.message}).`);
         }
